@@ -37,6 +37,7 @@ async def async_setup_entry(
 ) -> None:
     """Set up the sensor platform."""
     coordinator_1min = hass.data[DOMAIN][config_entry.entry_id]["coordinator_1min"]
+    coordinator_voltage = hass.data[DOMAIN][config_entry.entry_id]["coordinator_voltage"]
     coordinator_1mon = hass.data[DOMAIN][config_entry.entry_id]["coordinator_1mon"]
     coordinator_day_sensor = hass.data[DOMAIN][config_entry.entry_id][
         "coordinator_day_sensor"
@@ -49,7 +50,20 @@ async def async_setup_entry(
             CurrentVuePowerSensor(coordinator_1min, identifier)
             for _, identifier in enumerate(coordinator_1min.data)
         )
+        
+    # Register mains voltage sensors for available phases.
+    device_information: dict[int, VueDevice] = hass.data[DOMAIN][
+        config_entry.entry_id
+    ]["device_information"]
 
+    if coordinator_voltage:
+        async_add_entities(
+            EmporiaMainsVoltageSensor(coordinator_voltage, device, channel)
+            for device in device_information.values()
+            for channel in device.channels
+            if channel.channel_num in ("Mains_A", "Mains_B", "Mains_C")
+        )
+        
     if coordinator_1mon:
         async_add_entities(
             CurrentVuePowerSensor(coordinator_1mon, identifier)
@@ -78,9 +92,7 @@ async def async_setup_entry(
     coordinator_device_status = hass.data[DOMAIN][config_entry.entry_id][
         "coordinator_device_status"
     ]
-    device_information: dict[int, VueDevice] = hass.data[DOMAIN][config_entry.entry_id][
-        "device_information"
-    ]
+    
     if coordinator_device_status and coordinator_device_status.data:
         async_add_entities(
             EmporiaChargerStatusSensor(coordinator_device_status, device_information[int(gid)])
@@ -217,7 +229,59 @@ class CurrentVuePowerSensor(CoordinatorEntity, SensorEntity):  # type: ignore
             return "This Month"
         return self._scale
 
+class EmporiaMainsVoltageSensor(CoordinatorEntity, SensorEntity):
+    """Represent voltage on an Emporia mains channel."""
 
+    _attr_has_entity_name = True
+    _attr_device_class = SensorDeviceClass.VOLTAGE
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_native_unit_of_measurement = UnitOfElectricPotential.VOLT
+    _attr_suggested_display_precision = 1
+
+    def __init__(self, coordinator, device: VueDevice, channel: VueDeviceChannel) -> None:
+        """Initialize a mains voltage sensor."""
+        super().__init__(coordinator)
+
+        self._device = device
+        self._channel = channel
+        self._id = f"{device.device_gid}-{channel.channel_num}"
+
+        phase_names = {
+            "Mains_A": "L1",
+            "Mains_B": "L2",
+            "Mains_C": "L3",
+        }
+
+        self._attr_name = f"Voltage {phase_names[channel.channel_num]}"
+        self._attr_unique_id = (
+            f"sensor.emporia_vue.voltage.{self._id}"
+        )
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        """Associate voltage with the existing Emporia mains channel."""
+        return DeviceInfo(
+            identifiers={
+                (DOMAIN, self._id)
+            },
+            name=self._channel.name or self._device.device_name,
+            model=self._device.model,
+            sw_version=self._device.firmware,
+            manufacturer="Emporia",
+        )
+
+    @property
+    def native_value(self) -> float | None:
+        """Return the latest mains voltage reading."""
+        if not self.coordinator.data:
+            return None
+
+        reading = self.coordinator.data.get(self._id)
+        if reading is None:
+            return None
+
+        return reading.get("voltage")
+        
 class EmporiaUpdateTelemetrySensor(SensorEntity):
     """Base entity for Emporia cloud update telemetry."""
 
