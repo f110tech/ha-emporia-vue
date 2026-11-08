@@ -344,7 +344,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 def collect(devices) -> None:
                     """Collect available mains voltage channels."""
                     for device in devices.values():
-                        for channel in device.channels.values():
+                        for channel in device.channels:
                             if channel.channel_num in (
                                 "Mains_A",
                                 "Mains_B",
