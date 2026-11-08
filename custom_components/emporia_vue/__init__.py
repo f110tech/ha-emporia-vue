@@ -6,6 +6,7 @@ from collections.abc import Mapping
 from datetime import UTC, datetime, timedelta, tzinfo
 from functools import partial
 import logging
+import math
 import re
 from typing import Any
 
@@ -20,7 +21,7 @@ from pyemvue.device import (
     VueDeviceChannelUsage,
     VueUsageDevice,
 )
-from pyemvue.enums import Scale
+from pyemvue.enums import Scale, Unit
 import requests
 import voluptuous as vol
 
@@ -321,8 +322,86 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                             LAST_MONTH_INTEGRATED_MINUTE[month_id] = timestamp
             return LAST_MONTH_DATA
 
+        async def async_update_voltage() -> dict[str, Any]:
+            """Fetch mains voltage without affecting energy calculations."""
+            try:
+                usage_devices = await hass.async_add_executor_job(
+                    partial(
+                        vue.get_device_list_usage,
+                        DEVICE_GIDS,
+                        datetime.now(UTC),
+                        Scale.MINUTE.value,
+                        Unit.VOLTS.value,
+                        max_retry_attempts=1,
+                    )
+                )
+
+                if not usage_devices:
+                    raise UpdateFailed("Emporia returned no voltage devices")
+
+                data: dict[str, Any] = {}
+
+                def collect(devices) -> None:
+                    """Collect available mains voltage channels."""
+                    for device in devices.values():
+                        for channel in device.channels.values():
+                            if channel.channel_num in (
+                                "Mains_A",
+                                "Mains_B",
+                                "Mains_C",
+                            ):
+                                value = channel.usage
+
+                                if (
+                                    isinstance(value, (int, float))
+                                    and not isinstance(value, bool)
+                                    and math.isfinite(value)
+                                    and value >= 0
+                                ):
+                                    data[
+                                        f"{device.device_gid}-{channel.channel_num}"
+                                    ] = {
+                                        "voltage": float(value),
+                                        "timestamp": (
+                                            device.timestamp.isoformat()
+                                            if device.timestamp
+                                            else None
+                                        ),
+                                    }
+
+                            if channel.nested_devices:
+                                collect(channel.nested_devices)
+
+                collect(usage_devices)
+                return data
+
+            except UpdateFailed:
+                raise
+            except Exception as err:
+                raise UpdateFailed(
+                    "Unable to retrieve Emporia mains voltage"
+                ) from err
+
         coordinator_1min = None
         retry_update_methods: dict[str, TolerantUpdateMethod] = {}
+        
+        voltage_update_method = TolerantUpdateMethod(
+            async_update_voltage,
+            name="Mains voltage telemetry",
+            logger=_LOGGER,
+            recoverable_exceptions=(UpdateFailed,),
+            tolerated_failures=TOLERATED_UPDATE_FAILURES,
+        )
+        retry_update_methods["voltage"] = voltage_update_method
+
+        coordinator_voltage = DataUpdateCoordinator(
+            hass,
+            _LOGGER,
+            name="mains voltage telemetry",
+            update_method=voltage_update_method,
+            update_interval=timedelta(seconds=60),
+        )
+        
         if ENABLE_1M not in entry_data or entry_data[ENABLE_1M]:
             minute_update_method = TolerantUpdateMethod(
                 async_update_data_1min,
@@ -540,6 +619,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         "coordinator_1mon": coordinator_1mon,
         "coordinator_day_sensor": coordinator_day_sensor,
         "coordinator_device_status": coordinator_device_status,
+        "coordinator_voltage": coordinator_voltage,
         "device_information": DEVICE_INFORMATION,
         "retry_update_methods": retry_update_methods,
     }
