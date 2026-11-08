@@ -220,6 +220,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         total_channels = 0
         for device in DEVICE_INFORMATION.values():
             total_channels += len(device.channels)
+            _LOGGER.warning(
+                "VOLTAGE DEBUG: Device %s channels: %s",
+                device.device_gid,
+                [channel.channel_num for channel in device.channels],
+            )
         _LOGGER.info(
             "Found %s Emporia devices with %s total channels",
             len(DEVICE_INFORMATION.keys()),
