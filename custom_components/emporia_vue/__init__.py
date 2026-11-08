@@ -344,6 +344,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 if not usage_devices:
                     raise UpdateFailed("Emporia returned no voltage devices")
 
+                _LOGGER.warning(
+                    "VOLTAGE API DEBUG: %s",
+                    usage_devices,
+                )
+                    
                 data: dict[str, Any] = {}
 
                 def collect(devices) -> None:
@@ -406,7 +411,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             update_method=voltage_update_method,
             update_interval=timedelta(seconds=60),
         )
-        
+        # TEMPORARY: Trigger voltage API discovery during setup.
+        try:
+            await coordinator_voltage.async_refresh()
+        except Exception as err:
+            _LOGGER.warning("VOLTAGE DEBUG: Initial refresh failed: %s", err)
+            
         if ENABLE_1M not in entry_data or entry_data[ENABLE_1M]:
             minute_update_method = TolerantUpdateMethod(
                 async_update_data_1min,
