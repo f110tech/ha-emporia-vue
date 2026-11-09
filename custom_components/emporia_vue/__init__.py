@@ -50,6 +50,7 @@ from .const import (
     ENABLE_1D,
     ENABLE_1M,
     ENABLE_1MON,
+    MAINS_VOLTAGE_UPDATE_INTERVAL,
     SOLAR_INVERT,
     VUE_DATA,
 )
@@ -416,7 +417,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             _LOGGER,
             name="mains voltage telemetry",
             update_method=voltage_update_method,
-            update_interval=timedelta(seconds=60),
+            update_interval=timedelta(seconds=entry.data.get(MAINS_VOLTAGE_UPDATE_INTERVAL, 60)),
         )
         # TEMPORARY: Trigger voltage API discovery during setup.
         try:
