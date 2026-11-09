@@ -40,7 +40,7 @@
                     "enable_1d": "Energy Today Sensor",
                     "enable_1m": "Power Minute Average Sensor",
                     "enable_1mon": "Energy This Month Sensor",
-                    "solar_invert": "Invert Values for Solar Circuits"
+                    "solar_invert": "Invert Values for Solar Circuits",
                     "mains_voltage_update_interval": "Mains Voltage Update Interval (seconds)"
                 }
             },
