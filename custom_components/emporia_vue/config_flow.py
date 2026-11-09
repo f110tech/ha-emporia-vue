@@ -13,6 +13,7 @@ import voluptuous as vol
 from homeassistant import config_entries, exceptions
 from homeassistant.const import CONF_EMAIL, CONF_PASSWORD
 import homeassistant.helpers.config_validation as cv
+from homeassistant.helpers import selector
 from homeassistant.helpers.config_entry_oauth2_flow import AbstractOAuth2FlowHandler
 
 from .const import (
@@ -322,7 +323,7 @@ class ConfigFlow(AbstractOAuth2FlowHandler, domain=DOMAIN):
                 ENABLE_1D: user_input[ENABLE_1D],
                 ENABLE_1MON: user_input[ENABLE_1MON],
                 SOLAR_INVERT: user_input[SOLAR_INVERT],
-                MAINS_VOLTAGE_UPDATE_INTERVAL: user_input.get(MAINS_VOLTAGE_UPDATE_INTERVAL, 60),
+                MAINS_VOLTAGE_UPDATE_INTERVAL: int(user_input.get(MAINS_VOLTAGE_UPDATE_INTERVAL, 60)),
                 CUSTOMER_GID: info[CUSTOMER_GID],
                 CONFIG_TITLE: info[CONFIG_TITLE],
             }
@@ -348,16 +349,28 @@ class ConfigFlow(AbstractOAuth2FlowHandler, domain=DOMAIN):
                 SOLAR_INVERT,
                 default=current_config.data.get(SOLAR_INVERT, True),
             ): cv.boolean,
-                        vol.Optional(
+            vol.Optional(
                 SOLAR_INVERT,
                 default=current_config.data.get(SOLAR_INVERT, True),
             ): cv.boolean,
-            vol.Optional(
+            vol.Required(
                 MAINS_VOLTAGE_UPDATE_INTERVAL,
-                default=current_config.data.get(
-                    MAINS_VOLTAGE_UPDATE_INTERVAL, 60
+                default=str(
+                    current_config.data.get(
+                        MAINS_VOLTAGE_UPDATE_INTERVAL, 60
+                    )
                 ),
-            ): vol.In([30, 60, 120, 300]),
+            ): selector.SelectSelector(
+                selector.SelectSelectorConfig(
+                    options=[
+                        selector.SelectOptionDict(value="30", label="30 seconds"),
+                        selector.SelectOptionDict(value="60", label="60 seconds"),
+                        selector.SelectOptionDict(value="120", label="120 seconds"),
+                        selector.SelectOptionDict(value="300", label="300 seconds"),
+                    ],
+                    mode=selector.SelectSelectorMode.DROPDOWN,
+                )
+            ),
         }
 
         return self.async_show_form(
