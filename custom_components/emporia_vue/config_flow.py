@@ -317,10 +317,12 @@ class ConfigFlow(AbstractOAuth2FlowHandler, domain=DOMAIN):
             await self.async_set_unique_id(info[CUSTOMER_GID])
             self._abort_if_unique_id_mismatch(reason="wrong_account")
             data = {
+                **current_config.data,
                 ENABLE_1M: user_input[ENABLE_1M],
                 ENABLE_1D: user_input[ENABLE_1D],
                 ENABLE_1MON: user_input[ENABLE_1MON],
                 SOLAR_INVERT: user_input[SOLAR_INVERT],
+                MAINS_VOLTAGE_UPDATE_INTERVAL: user_input.get(MAINS_VOLTAGE_UPDATE_INTERVAL, 60),
                 CUSTOMER_GID: info[CUSTOMER_GID],
                 CONFIG_TITLE: info[CONFIG_TITLE],
             }
@@ -346,6 +348,16 @@ class ConfigFlow(AbstractOAuth2FlowHandler, domain=DOMAIN):
                 SOLAR_INVERT,
                 default=current_config.data.get(SOLAR_INVERT, True),
             ): cv.boolean,
+                        vol.Optional(
+                SOLAR_INVERT,
+                default=current_config.data.get(SOLAR_INVERT, True),
+            ): cv.boolean,
+            vol.Optional(
+                MAINS_VOLTAGE_UPDATE_INTERVAL,
+                default=current_config.data.get(
+                    MAINS_VOLTAGE_UPDATE_INTERVAL, 60
+                ),
+            ): vol.In([30, 60, 120, 300]),
         }
 
         return self.async_show_form(
