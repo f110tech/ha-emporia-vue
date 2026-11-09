@@ -56,13 +56,29 @@ async def async_setup_entry(
         config_entry.entry_id
     ]["device_information"]
 
-    if coordinator_voltage:
-        async_add_entities(
-            EmporiaMainsVoltageSensor(coordinator_voltage, device, channel)
-            for device in device_information.values()
-            for channel in device.channels
-            if channel.channel_num in ("Mains_A", "Mains_B", "Mains_C")
-        )
+    if coordinator_voltage and coordinator_voltage.data:
+        voltage_entities = []
+
+        for identifier in coordinator_voltage.data:
+            device_gid, channel_num = identifier.rsplit("-", 1)
+
+            if channel_num not in ("Mains_A", "Mains_B", "Mains_C"):
+                continue
+
+            device = device_information.get(int(device_gid))
+            if device is None:
+                continue
+
+            voltage_entities.append(
+                EmporiaMainsVoltageSensor(
+                    coordinator_voltage,
+                    device,
+                    channel_num,
+                )
+            )
+
+        if voltage_entities:
+            async_add_entities(voltage_entities)
         
     if coordinator_1mon:
         async_add_entities(
@@ -238,13 +254,13 @@ class EmporiaMainsVoltageSensor(CoordinatorEntity, SensorEntity):
     _attr_native_unit_of_measurement = UnitOfElectricPotential.VOLT
     _attr_suggested_display_precision = 1
 
-    def __init__(self, coordinator, device: VueDevice, channel: VueDeviceChannel) -> None:
+    def __init__(self, coordinator, device: VueDevice, channel_num: str) -> None:
         """Initialize a mains voltage sensor."""
         super().__init__(coordinator)
 
         self._device = device
-        self._channel = channel
-        self._id = f"{device.device_gid}-{channel.channel_num}"
+        self._channel_num = channel_num
+        self._id = f"{device.device_gid}-{channel_num}"
 
         phase_names = {
             "Mains_A": "L1",
@@ -252,19 +268,17 @@ class EmporiaMainsVoltageSensor(CoordinatorEntity, SensorEntity):
             "Mains_C": "L3",
         }
 
-        self._attr_name = f"Voltage {phase_names[channel.channel_num]}"
-        self._attr_unique_id = (
-            f"sensor.emporia_vue.voltage.{self._id}"
-        )
+        self._attr_name = f"Voltage {phase_names[channel_num]}"
+        self._attr_unique_id = f"sensor.emporia_vue.voltage.{self._id}"
 
     @property
     def device_info(self) -> DeviceInfo:
-        """Associate voltage with the existing Emporia mains channel."""
+        """Associate voltage with the Emporia monitor."""
         return DeviceInfo(
             identifiers={
-                (DOMAIN, self._id)
+                (DOMAIN, f"{self._device.device_gid}-1,2,3")
             },
-            name=self._channel.name or self._device.device_name,
+            name=self._device.device_name,
             model=self._device.model,
             sw_version=self._device.firmware,
             manufacturer="Emporia",
