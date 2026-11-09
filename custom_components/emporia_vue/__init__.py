@@ -383,6 +383,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                                 collect(channel.nested_devices)
 
                 collect(usage_devices)
+                _LOGGER.warning(
+                    "VOLTAGE DEBUG: Parsed voltage data: %s",
+                    data,
+                )
                 return data
 
             except UpdateFailed:
