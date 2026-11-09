@@ -387,7 +387,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
             except UpdateFailed:
                 raise
-            except Exception as err:
+                        except Exception as err:
+                _LOGGER.exception(
+                    "VOLTAGE DEBUG: Unexpected error processing voltage response"
+                )
                 raise UpdateFailed(
                     "Unable to retrieve Emporia mains voltage"
                 ) from err
